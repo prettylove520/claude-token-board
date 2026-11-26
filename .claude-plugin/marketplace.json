@@ -1,0 +1,5 @@
+{
+  "name": "claude-token-board",
+  "owner": { "name": "prettylove520" },
+  "plugins": [{ "name": "token-board", "source": "./" }]
+}
