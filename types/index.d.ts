@@ -9,6 +9,7 @@ export type Live = {
 /** [input, output, cacheWrite5m, cacheWrite1h, cacheRead, requests] */
 export type Row = [number, number, number, number, number, number]
 export type Days = Record<string, Record<string, Row>>
+export type Flash = 'open' | 'refresh' | 'refreshed' | null
 export type ScanInfo = { at: number; files: number; isRunning: boolean; error?: string }
 
 declare module 'claude-code' {
@@ -17,6 +18,7 @@ declare module 'claude-code' {
       live: Live | null
       days: Shaped<Days>
       scan: ScanInfo
+      flash: Flash
     }
   }
 }

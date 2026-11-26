@@ -1,1 +1,1 @@
-{ "name": "token-board", "version": "0.1.0", "description": "上下文与 Token 用量看板：顶部横条显示上下文、额度与费用，侧边面板显示历史统计", "types": "./types/index.d.ts", "license": "MIT", "author": { "name": "prettylove520" } }
+{ "name": "token-board", "version": "0.2.0", "description": "上下文与 Token 用量看板：顶部横条显示上下文、额度与费用，侧边面板显示历史统计", "types": "./types/index.d.ts", "license": "MIT", "author": { "name": "prettylove520" } }

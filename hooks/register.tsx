@@ -1,9 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { Days, Limit, Live, Row, ScanInfo } from '../types'
+import type { Days, Flash, Limit, Live, Row, ScanInfo } from '../types'
 
-import { bandSvg, paneSvg } from './svg'
+import { bandSvg, footerSvg, paneSvg } from './svg'
 import type { PaneModel } from './svg'
 
 const P = 'token-board'
@@ -12,6 +12,7 @@ const TITLE = 'Token 用量看板'
 
 const live = atom({ plugin: 'token-board', key: 'live' } as const, null as Live | null)
 const days = atom({ plugin: 'token-board', key: 'days' } as const, {} as Days, { shape: 'days-1' })
+const flash = atom({ plugin: 'token-board', key: 'flash' } as const, null as Flash)
 const scan = atom({ plugin: 'token-board', key: 'scan' } as const, { at: 0, files: 0, isRunning: false } as ScanInfo)
 
 // 每百万 token 美元：[输入, 输出, 缓存写5m, 缓存写1h, 缓存读]（API 标价，2026-11）
@@ -240,6 +241,23 @@ const setLive = async ($: any, u: { context: any; rateLimits: any[]; cost?: { us
 
 const openPane = ($: any) => $.ui.open({ id: PANE, title: TITLE })
 
+// 点击「看板」：亮起按下状态，打开并聚焦面板，约 1 秒后恢复
+const pressOpen = async ($: any) => {
+  await update($, flash, () => 'open' as Flash)
+  await $.ui.open({ id: PANE, title: TITLE, focus: true })
+  await $.clock.sleep(1000)
+  await update($, flash, f => (f === 'open' ? null : f))
+}
+
+// 点击「立即刷新」：刷新中 → 已刷新 → 恢复
+const pressRefresh = async ($: any) => {
+  await update($, flash, () => 'refresh' as Flash)
+  await runScan($)
+  await update($, flash, () => 'refreshed' as Flash)
+  await $.clock.sleep(1500)
+  await update($, flash, f => (f === 'refreshed' ? null : f))
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'token-board', description: '打开 Token 用量看板' })
@@ -283,7 +301,7 @@ export const register: Register = on => {
 
     if (e.surface !== 'terminal') {
       const { Svg } = $.ui.resolve(e) as any
-      const band = bandSvg(l, today)
+      const band = bandSvg(l, today, (await read($, flash)) === 'open')
 
       return (
         <Box flexDirection="row">
@@ -291,7 +309,7 @@ export const register: Register = on => {
             <Svg source={band.source} alt={`上下文 ${pct}%，今日 ${fmtUsd(today.usd)}`} />
             <Box position="absolute" right={0} top={0} bottom={0} width={Math.round(band.slotWidth / 7.2)} justifyContent="center" alignItems="center">
               {/* 文字由 SVG 画；按钮用空白盲文字符占位，只负责点击 */}
-              <Button key="open" label={'⠀'.repeat(Math.max(4, Math.round(band.slotWidth / 12)))} plain onPress={() => void openPane($)} />
+              <Button key="open" label={'⠀'.repeat(Math.max(4, Math.round(band.slotWidth / 12)))} plain onPress={() => void pressOpen($)} />
             </Box>
           </Box>
         </Box>
@@ -391,12 +409,23 @@ export const register: Register = on => {
         heat: grid.map(row => row.map(c => ({ tokens: c.tok, isFuture: c.isFuture, date: c.k }))),
         scanText: s.isRunning ? '正在扫描本机日志…' : s.at ? `${s.files} 个日志 · ${fmtReset(new Date(s.at).toISOString())} 更新 · 每分钟自动刷新` : '尚未扫描',
       }
-      const pane = paneSvg(model, 460)
+      // 固定按 430px 设计宽度绘制：桌面端会把 SVG 缩放到面板宽度，默认面板约 430px，几乎不缩放
+      const px = 430
+      const pane = paneSvg(model, px)
+      const fl = await read($, flash)
+      const foot = footerSvg(model.scanText, px, fl === 'refresh' ? 'refresh' : fl === 'refreshed' ? 'refreshed' : 'idle')
 
       return (
-        <Box flexDirection="column" gap="md">
+        <Box flexDirection="column">
           <Svg source={pane.source} alt="Token 用量看板" />
           {s.error ? <Text color="error">扫描出错：{s.error}</Text> : null}
+          <Box position="relative">
+            <Svg source={foot.source} alt={model.scanText} />
+            {/* 文字由 SVG 画；按钮用空白盲文字符占位，只负责点击 */}
+            <Box position="absolute" right={0} top={0} bottom={0} width={Math.round(foot.pillWidth / 7.2)} justifyContent="center" alignItems="center">
+              <Button key="rescan" label={'⠀'.repeat(Math.max(4, Math.round(foot.pillWidth / 12)))} plain onPress={() => void pressRefresh($)} />
+            </Box>
+          </Box>
         </Box>
       )
     }

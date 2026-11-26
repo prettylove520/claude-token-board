@@ -120,7 +120,7 @@ const miniRing = (cx: number, cy: number, r: number, pct: number) => {
     `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#lime)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${len} ${c}" transform="rotate(-90 ${cx} ${cy})"/>`
 }
 
-export const bandSvg = (live: Live | null, today: Totals) => {
+export const bandSvg = (live: Live | null, today: Totals, isOpening = false) => {
   const H = 58
   const y0 = 4
   const h = H - 10
@@ -166,11 +166,15 @@ export const bandSvg = (live: Live | null, today: Totals) => {
   })
   x += 36
   const openLabel = '全部统计'
-  const openValue = '看板 ›'
+  const openValue = isOpening ? '已打开 ✓' : '看板 ›'
   body.push(txt(x, mid - 5, openLabel, 12, 'm', 500))
   body.push(txt(x, mid + 15, openValue, 17, 't', 600))
-  x += Math.max(textW(openLabel, 12), textW(openValue, 17) * 1.05) + 22
+  x += Math.max(textW(openLabel, 12), textW('已打开 ✓', 17) * 1.05, textW('看板 ›', 17) * 1.05) + 22
   const slotWidth = x - slotStart
+  if (isOpening) {
+    // 按下反馈：整段亮起青柠色浅底
+    body.unshift(`<rect x="${slotStart + 6}" y="${y0 + 5}" width="${slotWidth - 10}" height="${h - 10}" rx="${(h - 10) / 2}" fill="url(#lime)" opacity="0.18"/>`)
+  }
   const W = Math.ceil(x + 2)
   const bg = `<rect x="1" y="${y0}" width="${W - 2}" height="${h}" rx="${h / 2}" class="card" filter="url(#sh)"/>`
 
@@ -180,11 +184,15 @@ export const bandSvg = (live: Live | null, today: Totals) => {
 // ───────────── 侧边面板 ─────────────
 
 export const paneSvg = (m: PaneModel, width: number) => {
-  const W = Math.max(320, Math.min(560, Math.round(width)))
+  const W = Math.max(300, Math.min(640, Math.round(width)))
   const P = 14 // 外边距
   const G = 12 // 卡片间距
   const CW = W - P * 2
   const out: string[] = []
+  // 面板字号整体放大一档，最小 12px
+  const SIZE: Record<number, number> = { 10: 12, 11: 12, 12: 13, 13: 14, 14: 16, 15: 17, 26: 30, 40: 46 }
+  const tx = (x: number, y: number, t: string, size: number, cls: string, weight = 400, anchor = 'start') =>
+    txt(x, y, t, SIZE[size] ?? size, cls, weight, anchor)
   let y = P
 
   // 1. 重点卡：上下文
@@ -192,12 +200,12 @@ export const paneSvg = (m: PaneModel, width: number) => {
     const h = 128
     out.push(card(P, y, CW, h, 24))
     const l = m.live
-    out.push(txt(P + 20, y + 30, '当前上下文', 12, 'm', 500))
-    out.push(txt(P + CW - 20, y + 30, l ? `窗口 ${fmtTok(l.window)}` : '', 12, 'm', 500, 'end'))
-    out.push(txt(P + 20, y + 76, l ? `${l.percent}%` : '—', 40, 't', 600))
+    out.push(tx(P + 20, y + 30, '当前上下文', 12, 'm', 500))
+    out.push(tx(P + CW - 20, y + 30, l ? `窗口 ${fmtTok(l.window)}` : '', 12, 'm', 500, 'end'))
+    out.push(tx(P + 20, y + 76, l ? `${l.percent}%` : '—', 40, 't', 600))
     if (l) {
-      out.push(txt(P + CW - 20, y + 58, `已用 ${fmtTok(l.tokens)}`, 14, 't', 600, 'end'))
-      out.push(txt(P + CW - 20, y + 77, `剩余 ${fmtTok(Math.max(0, l.window - l.tokens))}`, 12, 'm', 400, 'end'))
+      out.push(tx(P + CW - 20, y + 58, `已用 ${fmtTok(l.tokens)}`, 14, 't', 600, 'end'))
+      out.push(tx(P + CW - 20, y + 77, `剩余 ${fmtTok(Math.max(0, l.window - l.tokens))}`, 12, 'm', 400, 'end'))
     }
     out.push(progress(P + 20, y + 98, CW - 40, 10, (l?.percent ?? 0) / 100))
     if (l) out.push(dot(P + 20 + textW(`${l.percent}%`, 40) * 1.12 + 10, y + 50, l.percent))
@@ -214,9 +222,9 @@ export const paneSvg = (m: PaneModel, width: number) => {
       const x = P + i * (cw + G)
       out.push(card(x, y, cw, h))
       out.push(ring(x + 46, y + h / 2, 26, l.pct))
-      out.push(txt(x + 46, y + h / 2 + 6, `${Math.round(l.pct)}%`, 15, 't', 600, 'middle'))
-      out.push(txt(x + 86, y + 38, limitName(l.kind), 13, 't', 600))
-      out.push(txt(x + 86, y + 60, l.resetsAt ? `${fmtReset(l.resetsAt)} 重置` : '—', 12, 'm'))
+      out.push(tx(x + 46, y + h / 2 + 6, `${Math.round(l.pct)}%`, 15, 't', 600, 'middle'))
+      out.push(tx(x + 86, y + 38, limitName(l.kind), 13, 't', 600))
+      out.push(tx(x + 86, y + 60, l.resetsAt ? `${fmtReset(l.resetsAt)} 重置` : '—', 12, 'm'))
       out.push(dot(x + cw - 18, y + 18, l.pct))
     })
     y += h + G
@@ -233,9 +241,9 @@ export const paneSvg = (m: PaneModel, width: number) => {
     cells.forEach(([label, value, sub], i) => {
       const x = P + i * (cw + G)
       out.push(card(x, y, cw, h))
-      out.push(txt(x + 18, y + 28, label, 12, 'm', 500))
-      out.push(txt(x + 18, y + 60, value, 26, 't', 600))
-      out.push(txt(x + 18, y + 78, sub, 11, 'm'))
+      out.push(tx(x + 18, y + 28, label, 12, 'm', 500))
+      out.push(tx(x + 18, y + 60, value, 26, 't', 600))
+      out.push(tx(x + 18, y + 78, sub, 11, 'm'))
     })
     y += h + G
   }
@@ -245,15 +253,15 @@ export const paneSvg = (m: PaneModel, width: number) => {
     const rows: [string, Totals][] = [['近 7 天', m.week], ['近 30 天', m.month], ['全部', m.all]]
     const h = 50 + rows.length * 44 + 64
     out.push(card(P, y, CW, h, 24))
-    out.push(txt(P + 18, y + 30, '用量汇总', 14, 't', 600))
-    out.push(txt(P + CW / 2, y + 30, 'Token', 11, 'm', 500, 'middle'))
-    out.push(txt(P + CW - 26, y + 30, '费用', 11, 'm', 500, 'end'))
+    out.push(tx(P + 18, y + 30, '用量汇总', 14, 't', 600))
+    out.push(tx(P + CW / 2, y + 30, 'Token', 11, 'm', 500, 'middle'))
+    out.push(tx(P + CW - 26, y + 30, '费用', 11, 'm', 500, 'end'))
     let ry = y + 48
     for (const [label, t] of rows) {
       out.push(`<rect x="${P + 12}" y="${ry}" width="${CW - 24}" height="36" rx="12" class="inset"/>`)
-      out.push(txt(P + 26, ry + 23, label, 13, 'm', 500))
-      out.push(txt(P + CW / 2, ry + 23, `${fmtTok(t.tokens)}`, 14, 't', 600, 'middle'))
-      out.push(txt(P + CW - 26, ry + 23, fmtUsd(t.usd), 14, 't', 600, 'end'))
+      out.push(tx(P + 26, ry + 23, label, 13, 'm', 500))
+      out.push(tx(P + CW / 2, ry + 23, `${fmtTok(t.tokens)}`, 14, 't', 600, 'middle'))
+      out.push(tx(P + CW - 26, ry + 23, fmtUsd(t.usd), 14, 't', 600, 'end'))
       ry += 44
     }
     // 近 30 天构成
@@ -265,7 +273,7 @@ export const paneSvg = (m: PaneModel, width: number) => {
       ['输出', t.output, '#8A8D93'],
       ['输入', t.input, '#C9CBCF'],
     ]
-    out.push(txt(P + 18, ry + 14, '近 30 天构成', 12, 'm', 500))
+    out.push(tx(P + 18, ry + 14, '近 30 天构成', 12, 'm', 500))
     let sx = P + 18
     const sw = CW - 36
     out.push(`<clipPath id="seg"><rect x="${sx}" y="${ry + 22}" width="${sw}" height="10" rx="5"/></clipPath><g clip-path="url(#seg)"><rect x="${sx}" y="${ry + 22}" width="${sw}" height="10" class="track"/>`)
@@ -279,7 +287,7 @@ export const paneSvg = (m: PaneModel, width: number) => {
     for (const [name, v, fill] of segs) {
       const s = `${name} ${fmtTok(v)}`
       out.push(`<circle cx="${lx + 4}" cy="${ry + 46}" r="4" fill="${fill}"/>`)
-      out.push(txt(lx + 12, ry + 50, s, 11, 'm'))
+      out.push(tx(lx + 12, ry + 50, s, 11, 'm'))
       lx += 12 + textW(s, 11) + 12
     }
     y += h + G
@@ -289,11 +297,11 @@ export const paneSvg = (m: PaneModel, width: number) => {
   {
     const h = 196
     out.push(card(P, y, CW, h, 24))
-    out.push(txt(P + 18, y + 30, '近 14 天费用', 14, 't', 600))
+    out.push(tx(P + 18, y + 30, '近 14 天费用', 14, 't', 600))
     const bars = [...m.recent].reverse()
     const max = Math.max(0.0001, ...bars.map(b => b.usd))
     const peak = bars.reduce((a, b) => (b.usd > a.usd ? b : a), bars[0] ?? { label: '', usd: 0, tokens: 0, isToday: false })
-    out.push(txt(P + CW - 18, y + 30, `峰值 ${fmtUsd(peak.usd)} · ${peak.label}`, 12, 'm', 500, 'end'))
+    out.push(tx(P + CW - 18, y + 30, `峰值 ${fmtUsd(peak.usd)} · ${peak.label}`, 12, 'm', 500, 'end'))
     const top = y + 60
     const base = y + h - 34
     const area = base - top
@@ -306,8 +314,8 @@ export const paneSvg = (m: PaneModel, width: number) => {
       const isHot = b.isToday || b === peak
       out.push(`<rect x="${bx}" y="${top}" width="${bw}" height="${area}" rx="${bw / 2}" class="inset"/>`)
       out.push(`<rect x="${bx}" y="${base - bh}" width="${bw}" height="${bh}" rx="${bw / 2}" ${isHot ? 'fill="url(#limev)"' : 'class="bar"'}><title>${esc(`${b.label} ${fmtUsd(b.usd)} · ${fmtTok(b.tokens)}`)}</title></rect>`)
-      if (isHot) out.push(txt(bx + bw / 2, base - bh - 6, fmtUsd(b.usd), 10, 't', 600, 'middle'))
-      if (i % 2 === (n - 1) % 2) out.push(txt(bx + bw / 2, base + 20, b.label, 10, b.isToday ? 't' : 'm', b.isToday ? 600 : 400, 'middle'))
+      if (isHot) out.push(tx(bx + bw / 2, base - bh - 6, fmtUsd(b.usd), 10, 't', 600, 'middle'))
+      if (i % 2 === (n - 1) % 2) out.push(tx(bx + bw / 2, base + 20, b.label, 10, b.isToday ? 't' : 'm', b.isToday ? 600 : 400, 'middle'))
     })
     y += h + G
   }
@@ -317,13 +325,13 @@ export const paneSvg = (m: PaneModel, width: number) => {
     const rows = m.models.slice(0, 5)
     const h = 48 + rows.length * 46
     out.push(card(P, y, CW, h, 24))
-    out.push(txt(P + 18, y + 30, '按模型 · 近 30 天', 14, 't', 600))
+    out.push(tx(P + 18, y + 30, '按模型 · 近 30 天', 14, 't', 600))
     const max = Math.max(0.0001, ...rows.map(r => r.usd))
     let ry = y + 50
     rows.forEach((r, i) => {
-      out.push(txt(P + 18, ry + 14, prettyModel(r.name), 13, 't', 500))
-      out.push(txt(P + CW - 18, ry + 14, `${fmtUsd(r.usd)}`, 13, 't', 600, 'end'))
-      out.push(txt(P + CW - 18 - textW(fmtUsd(r.usd), 13) - 10, ry + 14, `${fmtTok(r.tokens)} · ${r.reqs} 次`, 11, 'm', 400, 'end'))
+      out.push(tx(P + 18, ry + 14, prettyModel(r.name), 13, 't', 500))
+      out.push(tx(P + CW - 18, ry + 14, `${fmtUsd(r.usd)}`, 13, 't', 600, 'end'))
+      out.push(tx(P + CW - 18 - textW(fmtUsd(r.usd), 13) - 10, ry + 14, `${fmtTok(r.tokens)} · ${r.reqs} 次`, 11, 'm', 400, 'end'))
       const bw = CW - 36
       out.push(`<rect x="${P + 18}" y="${ry + 22}" width="${bw}" height="6" rx="3" class="track"/>`)
       out.push(`<rect x="${P + 18}" y="${ry + 22}" width="${Math.max(6, (r.usd / max) * bw)}" height="6" rx="3" ${i === 0 ? 'fill="url(#lime)"' : 'class="bar"'}/>`)
@@ -347,27 +355,27 @@ export const paneSvg = (m: PaneModel, width: number) => {
     const gridTop = y + 62
     const h = 62 + 7 * (cell + gap) + 34
     out.push(card(P, y, CW, h, 24))
-    out.push(txt(P + 18, y + 30, `活跃热力图 · 近 ${weeks} 周`, 14, 't', 600))
+    out.push(tx(P + 18, y + 30, `活跃热力图 · 近 ${weeks} 周`, 14, 't', 600))
     let max = 1
     let active = 0
     for (const row of grid) for (const c of row) {
       max = Math.max(max, c.tokens)
       if (c.tokens > 0) active++
     }
-    out.push(txt(P + CW - 18, y + 30, `活跃 ${active} 天`, 12, 'm', 500, 'end'))
+    out.push(tx(P + CW - 18, y + 30, `活跃 ${active} 天`, 12, 'm', 500, 'end'))
     let lastMonth = ''
     for (let w = 0; w < weeks; w++) {
       const d = grid[0]?.[w]?.date ?? ''
       const month = d.slice(5, 7)
       if (month && month !== lastMonth) {
-        out.push(txt(gx + labelW + w * (cell + gap), gridTop - 8, `${Number(month)}月`, 10, 'm', 500))
+        out.push(tx(gx + labelW + w * (cell + gap), gridTop - 8, `${Number(month)}月`, 10, 'm', 500))
         lastMonth = month
       }
     }
     const names = ['一', '', '三', '', '五', '', '日']
     grid.forEach((row, d) => {
       const cy = gridTop + d * (cell + gap)
-      if (names[d]) out.push(txt(gx, cy + cell / 2 + 4, names[d] ?? '', 10, 'm'))
+      if (names[d]) out.push(tx(gx, cy + cell / 2 + 4, names[d] ?? '', 10, 'm'))
       row.forEach((c, w) => {
         if (c.isFuture) return
         const cx = gx + labelW + w * (cell + gap)
@@ -379,20 +387,37 @@ export const paneSvg = (m: PaneModel, width: number) => {
       })
     })
     const ly = y + h - 20
-    out.push(txt(P + CW - 18 - 5 * (12 + 3) - 8, ly + 4, '少', 10, 'm', 400, 'end'))
+    out.push(tx(P + CW - 18 - 5 * (12 + 3) - 8, ly + 4, '少', 10, 'm', 400, 'end'))
     ;[0, 0.25, 0.45, 0.7, 1].forEach((op, i) => {
       const lx = P + CW - 18 - (5 - i) * (12 + 3)
       out.push(`<rect x="${lx}" y="${ly - 6}" width="12" height="12" rx="3" class="inset"/>`)
       if (op > 0) out.push(`<rect x="${lx}" y="${ly - 6}" width="12" height="12" rx="3" fill="url(#lime)" opacity="${op}"/>`)
     })
-    out.push(txt(P + CW - 18 + 4, ly + 4, '多', 10, 'm'))
+    out.push(tx(P + CW - 18 + 4, ly + 4, '多', 10, 'm'))
     y += h + G
   }
 
-  // 8. 脚注
-  out.push(txt(P + 4, y + 8, '费用按 API 标价估算，不是订阅的实际扣费', 11, 'm'))
-  out.push(txt(P + 4, y + 26, m.scanText, 11, 'm'))
-  y += 36
-
   return { source: doc(W, Math.ceil(y), out.join('')), width: W, height: Math.ceil(y) }
+}
+
+// ───────────── 面板底部：说明 + 「立即刷新」胶囊（原生按钮透明叠在胶囊上） ─────────────
+
+export const footerSvg = (scanText: string, width: number, state: 'idle' | 'refresh' | 'refreshed' = 'idle') => {
+  const W = Math.max(300, Math.min(640, Math.round(width)))
+  const H = 64
+  const label = state === 'refresh' ? '刷新中…' : state === 'refreshed' ? '✓  已刷新' : '↻  立即刷新'
+  const pillW = Math.ceil(textW('↻  立即刷新', 14) * 1.05 + 32)
+  const pillH = 38
+  const px = W - 14 - pillW
+  const py = (H - pillH) / 2
+  const body =
+    txt(18, 27, '费用按 API 标价估算，不是实际扣费', 12, 'm') +
+    txt(18, 46, scanText, 12, 'm') +
+    (state === 'idle'
+      ? `<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="${pillH / 2}" class="card" filter="url(#sh)"/>` +
+        txt(px + pillW / 2, py + 24, label, 14, 't', 600, 'middle')
+      : `<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="${pillH / 2}" fill="url(#lime)" filter="url(#sh)"/>` +
+        `<text x="${px + pillW / 2}" y="${py + 24}" font-size="14" font-weight="600" text-anchor="middle" fill="#0F2A12" style="font-family:${FONT}">${esc(label)}</text>`)
+
+  return { source: doc(W, H, body), width: W, height: H, pillWidth: pillW + 14 }
 }
