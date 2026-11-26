@@ -133,6 +133,10 @@ let offsets: Record<string, number> = {}
 let seen: string[] = []
 let seenSet = new Set<string>()
 let isLoaded = false
+// 进度落盘限频：days / seen / offsets 三者总是一起写，状态一致；没落盘的部分下次重扫即可
+const SAVE_EVERY = 5 * 60_000
+let isDirty = false
+let savedAt = 0
 
 const loadIndex = async ($: any) => {
   if (isLoaded) return
@@ -185,7 +189,7 @@ const ingest = (text: string, acc: Days) => {
   }
 }
 
-const runScan = async ($: any) => {
+const runScan = async ($: any, isForced = false) => {
   if (isScanning || !projectsDir) return
   isScanning = true
   await update($, scan, s => ({ ...s, isRunning: true }))
@@ -216,10 +220,15 @@ const runScan = async ($: any) => {
     }
     if (changed) {
       await update($, days, () => acc)
+      isDirty = true
+    }
+    if (isDirty && (isForced || Date.now() - savedAt >= SAVE_EVERY)) {
       await $.store.set('days', acc)
       await $.store.set('seen', seen)
+      await $.store.set('offsets', offsets)
+      isDirty = false
+      savedAt = Date.now()
     }
-    await $.store.set('offsets', offsets)
     await update($, scan, () => ({ at: Date.now(), files: files.length, isRunning: false }))
   } catch (err) {
     await update($, scan, s => ({ ...s, isRunning: false, error: String(err) }))
@@ -252,7 +261,7 @@ const pressOpen = async ($: any) => {
 // 点击「立即刷新」：刷新中 → 已刷新 → 恢复
 const pressRefresh = async ($: any) => {
   await update($, flash, () => 'refresh' as Flash)
-  await runScan($)
+  await runScan($, true)
   await update($, flash, () => 'refreshed' as Flash)
   await $.clock.sleep(1500)
   await update($, flash, f => (f === 'refreshed' ? null : f))
